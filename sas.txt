@@ -1,0 +1,77 @@
+* import data file;
+proc import datafile = "/home/u60636216/Weight_loss" 
+DBMS = xlsx out = wl0 replace ;
+run;
+
+* Get a snapshot of the data as a whole ;
+* Identify highs and lows to find an outliner in the data if exists i.e. human weight of 999 ;
+proc means; 
+var weight0	weight1 weight2 walk_steps;
+run;
+
+proc freq data = wl0 ;
+table gender;
+run;
+
+* Cleaning of data ;
+* create a new data step; 
+data wl1;
+* use data from a previous data step; 
+set wl0;
+* loop over data to replace outlier value to be marked as missing ;
+array v(2)	weight1 weight2;
+   DO i = 1 TO 2;                       
+      IF v(i) = 9999  THEN v(i) =.;   
+   END; 
+
+* find the delta between sessions ;
+wd1 = weight0 - weight1;
+wd2 = weight0 - weight2; /*will be used for this project*/
+wd12 = weight1 - weight2;
+* drop i from final data;
+drop i;
+run;
+
+
+* check the weight difference variables;
+*checks min, max values ; 
+proc means data = wl1 ;
+var wd2 walk_steps;
+run;
+* checks frequency of steps walked;
+proc freq data = wl1 ;
+table wd2 walk_steps;
+run;
+
+
+/*the new group has 3 categories:
+less than 5000
+'5000-10000'
+greater than 10000*/
+data wl2;
+set wl1;
+length walk_steps_G loss_weight_G $20;
+
+if walk_steps < 5000 then walk_steps_G = 'less than 5000';
+else if 5000 <= walk_steps < = 10000 then walk_steps_G = '5000-10000';
+else walk_steps_G = '> 10000';
+
+if wd2 ne . and wd2 <= 0 then loss_weight_G = 'not losing weight';
+else if 0 < wd2 < =5 then loss_weight_G = 'losing <= 5 lb';
+else if wd2> 5 then loss_weight_G = 'losing > 5 lb';
+else loss_weight_G ='missing';
+
+run;
+
+
+/*Create permanent data set*/
+libname projectd "/home/u60636216/";
+data projectd.weight_loss;
+set wl2;
+run;
+
+/*NOCOL. Suppress the cumulative frequencies and the cumulative percentages in one-way frequency tables and in list format*/
+proc freq data = wl2 ;
+table walk_steps_G * loss_weight_G/norow nocol;
+run;
+
